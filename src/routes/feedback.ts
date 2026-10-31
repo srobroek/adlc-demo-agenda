@@ -9,8 +9,27 @@ const LeaveFeedback = z.object({
   comment: z.string().max(500).optional(),
 });
 
+/** Rating count, average to one decimal (null without feedback) and non-empty comments, newest first. */
+export function feedbackSummary(sessionId: string, entries: readonly Feedback[]) {
+  const count = entries.length;
+  const total = entries.reduce((sum, entry) => sum + entry.rating, 0);
+  const average = count === 0 ? null : Math.round((total / count) * 10) / 10;
+  const comments = entries
+    .map((entry) => entry.comment)
+    .filter((comment): comment is string => comment !== null && comment.trim() !== "")
+    .reverse();
+  return { sessionId, count, average, comments };
+}
+
 export function feedbackRoutes(catalog: Catalog, store: FeedbackStore) {
   return {
+    "/sessions/:id/feedback/summary": {
+      GET: (req: BunRequest<"/sessions/:id/feedback/summary">) => {
+        const sessionId = req.params.id;
+        if (catalog.session(sessionId) === undefined) return notFound(`session ${sessionId}`);
+        return json(feedbackSummary(sessionId, store.forSession(sessionId)));
+      },
+    },
     "/sessions/:id/feedback": {
       POST: async (req: BunRequest<"/sessions/:id/feedback">) => {
         const sessionId = req.params.id;
